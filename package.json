@@ -9,7 +9,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/browser.test.js && node test/parse.test.js && node test/parse_dns.test.js && node test/rank.test.js && node test/yandex.test.js && node test/urls.test.js && node test/proxy.test.js && node test/dns-product.test.js && node test/wildberries.test.js && node test/wb-native.test.js && node test/catalog.test.js && node test/profile.test.js",
+    "test": "node test/browser.test.js && node test/parse.test.js && node test/parse_dns.test.js && node test/rank.test.js && node test/yandex.test.js && node test/urls.test.js && node test/proxy.test.js && node test/dns-product.test.js && node test/wildberries.test.js && node test/wb-native.test.js && node test/catalog.test.js && node test/card_image.test.js && node test/profile.test.js",
     "catalog:list": "node scripts/catalog-list.mjs",
     "catalog:serve": "node scripts/catalog-serve.mjs",
     "catalog:backfill-norm": "node scripts/catalog-backfill-norm.mjs",

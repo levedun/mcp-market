@@ -25,9 +25,27 @@ function withPage(url, label, fn, settleMs = 4000) {
   });
 }
 
-/** Карточки выдачи DNS на текущей странице: название, цена, рейтинг, отзывы, короткие характеристики, надёжность. */
+/** Карточки выдачи DNS на текущей странице: название, цена, рейтинг, отзывы, короткие характеристики, надёжность, картинка. */
 function readCards(page, lim) {
   return page.evaluate((lim) => {
+    const imgUrl = (img) => {
+      if (!img) return null;
+      const raw =
+        img.currentSrc ||
+        img.getAttribute("data-src") ||
+        img.getAttribute("data-url") ||
+        img.src ||
+        (img.getAttribute("srcset") || "").split(",")[0]?.trim().split(/\s+/)[0] ||
+        "";
+      const s = String(raw || "").trim();
+      if (!s || /^data:/i.test(s)) return null;
+      try {
+        const u = new URL(s, location.origin);
+        return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+      } catch {
+        return null;
+      }
+    };
     const cards = [...document.querySelectorAll("[data-id='product'], .catalog-product")];
     const out = [];
     for (const c of cards) {
@@ -40,6 +58,11 @@ function readCards(page, lim) {
       const pm = (price?.innerText || "").replace(/\s/g, "").match(/(\d+)₽/);
       const text = c.innerText || "";
       const name = (a.innerText || "").trim();
+      const img =
+        c.querySelector("img.catalog-product__image") ||
+        c.querySelector(".catalog-product__image img") ||
+        c.querySelector("picture img") ||
+        c.querySelector("img[data-src], img[src]");
       out.push({
         name,
         brand: (name.match(/(?:поверхность|панель|машина|шкаф|холодильник|духовой шкаф|вытяжка|мойка|смеситель)\s+([A-Za-zА-Яа-я&\-]+)/) || [])[1] || null,
@@ -48,6 +71,7 @@ function readCards(page, lim) {
         rating: rm ? Number(rm[1].replace(",", ".")) : null,
         reviews: rm ? Math.round(Number(rm[2].replace(",", ".")) * (rm[3] ? 1000 : 1)) : /нет отзывов/i.test(rt) ? 0 : null,
         reliability: (text.match(/(Отличная|Хорошая|Низкая|Средняя) надежность/) || [])[0] || null,
+        image: imgUrl(img),
         specsText: text,
       });
       if (out.length >= lim) break;

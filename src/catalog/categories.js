@@ -7,35 +7,55 @@ const NOISE_ROOT = /^(каталог|dns|ozon|wildberries|вб|wb|яндекс(?
 const LEAF_SIBLING = /кресл|мышь|мыши|стул|флеш|наушник|клавиатур|монитор|коврик|гарнитур|микрофон/i;
 
 /**
- * Canonical rules: first match wins (specific → broad).
- * `re` is tested against name + brand + raw path joined.
+ * Finished devices whose titles often list RAM/SSD/GPU as specs — component rules
+ * must not win on those strings.
+ */
+export const FINISHED_DEVICE =
+  /мини[\s-]?пк|mini[\s-]?pc|неттоп|моноблок|системн\w*\s*блок|готов\w*\s*(?:пк|компьютер)|игрово\w*\s*пк|(?:^|[\s(])пк\s+[A-Za-zА-Яа-я0-9]|ноутбук|notebook|laptop|макбук|macbook|смартфон|iphone|android.?телефон|планшет|tablet/i;
+
+/**
+ * Canonical rules: first match wins (finished devices → furniture/peripherals → parts).
+ * Optional `unless` skips the rule when that regex matches the haystack.
  */
 export const CANON_RULES = [
-  { re: /usb[\s-]?флеш|флеш[\s-]?карт|флешк|flash\s*driv|usb[\s-]?flash|накопител[^\n]{0,20}usb/i, path: ["Электроника", "Накопители", "USB-флешки"] },
-  { re: /ssd|ж[её]стк\w*\s*диск|hdd|nvme|накопител/i, path: ["Электроника", "Накопители", "Диски и SSD"] },
-  { re: /оперативн\w*\s*памят|\bозу\b|\bram\b|ddr[345]/i, path: ["Электроника", "Комплектующие", "Оперативная память"] },
-  { re: /видеокарт|видеоадаптер|\bgpu\b|geforce|radeon/i, path: ["Электроника", "Комплектующие", "Видеокарты"] },
-  { re: /процессоры?|\bcpu\w*\b|ryzen|core\s*i[3579]/i, path: ["Электроника", "Комплектующие", "Процессоры"] },
-  { re: /материнск\w*\s*плат|motherboard|\bmobo\b/i, path: ["Электроника", "Комплектующие", "Материнские платы"] },
+  // ── finished devices (before parts: titles embed "SSD", "RAM", "RTX" as specs) ──
+  { re: /смартфон|iphone|android.?телефон|телефон\w*\s*и\s*смарт/i, path: ["Электроника", "Телефоны", "Смартфоны"] },
+  { re: /планшет|tablet|ipad/i, path: ["Электроника", "Планшеты"] },
+  { re: /ноутбук|notebook|laptop|макбук|macbook/i, path: ["Электроника", "Компьютеры", "Ноутбуки"] },
+  {
+    re: /мини[\s-]?пк|mini[\s-]?pc|неттоп|моноблок|системн\w*\s*блок|готов\w*\s*(?:пк|компьютер)|игрово\w*\s*пк|(?:^|[\s(])пк\s+[A-Za-zА-Яа-я0-9]/i,
+    path: ["Электроника", "Компьютеры", "Настольные и мини-ПК"],
+  },
+
+  // ── furniture ──
+  { re: /кресл\w*.{0,40}(комп|игро|гейм|офис|эргоном)|((комп|игро|гейм|офис|эргоном)\w*.{0,40}кресл)|gaming\s*chair|офисн\w*\s*кресл/i, path: ["Мебель", "Кресла компьютерные"] },
+  { re: /кресл/i, path: ["Мебель", "Кресла"] },
+  { re: /стол\w*.{0,30}(комп|письм|офис)|(комп|письм|офис)\w*.{0,30}стол/i, path: ["Мебель", "Столы"] },
+
+  // ── peripherals ──
   { re: /мышь|мыши|\bmouse\b|мышка/i, path: ["Электроника", "Периферия", "Мыши"] },
   { re: /клавиатур|keyboard/i, path: ["Электроника", "Периферия", "Клавиатуры"] },
   { re: /наушник|гарнитур|headset|headphones?/i, path: ["Электроника", "Аудио", "Наушники"] },
   { re: /монитор(?!инг)|monitor/i, path: ["Электроника", "Периферия", "Мониторы"] },
-  { re: /ноутбук|notebook|laptop|макбук|macbook/i, path: ["Электроника", "Компьютеры", "Ноутбуки"] },
-  { re: /кресл\w*.{0,40}(комп|игро|гейм|офис|эргоном)|((комп|игро|гейм|офис|эргоном)\w*.{0,40}кресл)|gaming\s*chair|офисн\w*\s*кресл/i, path: ["Мебель", "Кресла компьютерные"] },
-  { re: /кресл/i, path: ["Мебель", "Кресла"] },
-  { re: /стол\w*.{0,30}(комп|письм|офис)|(комп|письм|офис)\w*.{0,30}стол/i, path: ["Мебель", "Столы"] },
-  { re: /смартфон|iphone|android.?телефон|телефон\w*\s*и\s*смарт/i, path: ["Электроника", "Телефоны", "Смартфоны"] },
+
+  // ── storage / parts (skip when the title is a finished PC/phone/…) ──
+  { re: /usb[\s-]?флеш|флеш[\s-]?карт|флешк|flash\s*driv|usb[\s-]?flash|накопител[^\n]{0,20}usb/i, path: ["Электроника", "Накопители", "USB-флешки"] },
+  { re: /(?:^|[^\w])(?:ssd|hdd|nvme)(?:$|[^\w])|ж[её]стк\w*\s*диск|накопител/i, unless: FINISHED_DEVICE, path: ["Электроника", "Накопители", "Диски и SSD"] },
+  { re: /оперативн\w*\s*памят|\bозу\b|\bram\b|ddr[345]/i, unless: FINISHED_DEVICE, path: ["Электроника", "Комплектующие", "Оперативная память"] },
+  { re: /видеокарт|видеоадаптер|\bgpu\b|geforce|radeon/i, unless: FINISHED_DEVICE, path: ["Электроника", "Комплектующие", "Видеокарты"] },
+  { re: /процессоры?|\bcpu\w*\b|ryzen|core\s*i[3579]/i, unless: FINISHED_DEVICE, path: ["Электроника", "Комплектующие", "Процессоры"] },
+  { re: /материнск\w*\s*плат|motherboard|\bmobo\b/i, unless: FINISHED_DEVICE, path: ["Электроника", "Комплектующие", "Материнские платы"] },
 ];
 
 /** Path-segment aliases → canonical path (when keywords in name are weak). */
 const SEGMENT_ALIASES = [
+  { re: /мини[\s-]?пк|настольн|неттоп|моноблок/i, path: ["Электроника", "Компьютеры", "Настольные и мини-ПК"] },
+  { re: /ноутбук/i, path: ["Электроника", "Компьютеры", "Ноутбуки"] },
   { re: /usb[\s-]?флеш|флешк|flash/i, path: ["Электроника", "Накопители", "USB-флешки"] },
   { re: /компьютерн\w*\s*мыш|мыш(и|ь|ка)/i, path: ["Электроника", "Периферия", "Мыши"] },
   { re: /кресл|офисн\w*\s*мебел/i, path: ["Мебель", "Кресла компьютерные"] },
   { re: /оперативн|озу|\bram\b/i, path: ["Электроника", "Комплектующие", "Оперативная память"] },
   { re: /смартфон/i, path: ["Электроника", "Телефоны", "Смартфоны"] },
-  { re: /ноутбук/i, path: ["Электроника", "Компьютеры", "Ноутбуки"] },
 ];
 
 export function stripNoiseRoots(path) {
@@ -67,6 +87,11 @@ function haystack({ name, brand, category_path } = {}) {
   return [name, brand, ...(category_path || [])].filter(Boolean).join(" \n ");
 }
 
+function ruleMatches(rule, text) {
+  if (rule.unless && rule.unless.test(text)) return false;
+  return rule.re.test(text);
+}
+
 /**
  * Map raw marketplace path + product text → canonical breadcrumb for the catalog tree.
  * @returns {string[]|null}
@@ -76,7 +101,7 @@ export function normalizeCategory(product = {}) {
   const text = haystack({ ...product, category_path: raw });
 
   for (const rule of CANON_RULES) {
-    if (rule.re.test(text)) return [...rule.path];
+    if (ruleMatches(rule, text)) return [...rule.path];
   }
 
   // Segment aliases on cleaned raw path (deepest first).

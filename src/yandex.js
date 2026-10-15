@@ -34,6 +34,24 @@ function readCards(page, lim) {
   return page.evaluate(
     ([lim, helpersSrc]) => {
       const { norm, prices } = new Function(`return (${helpersSrc})()`)();
+      const imgUrl = (img) => {
+        if (!img) return null;
+        const raw =
+          img.currentSrc ||
+          img.getAttribute("data-src") ||
+          img.getAttribute("data-url") ||
+          img.src ||
+          (img.getAttribute("srcset") || "").split(",")[0]?.trim().split(/\s+/)[0] ||
+          "";
+        const s = String(raw || "").trim();
+        if (!s || /^data:/i.test(s)) return null;
+        try {
+          const u = new URL(s, location.origin);
+          return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+        } catch {
+          return null;
+        }
+      };
       const seen = new Map();
       for (const a of document.querySelectorAll('a[href*="/card/"], a[href*="/product--"]')) {
         const href = a.getAttribute("href").split("?")[0];
@@ -49,6 +67,10 @@ function readCards(page, lim) {
         const ps = prices(txt);
         const rating = (txt.match(/Рейтинг товара: (\d[.,]\d)/) || txt.match(/(\d[.,]\d)\s*\n?\s*(\d[\d.,]*\s*[Kк]?)?\s*(оцен|отзыв)/i) || [])[1];
         const reviews = (txt.match(/(\d[\d.,]*)\s*([Kк])?\s*(?:оцен|отзыв)/i) || []);
+        const img =
+          el.querySelector('img[src*="avatars.mds.yandex"], img[src*="yandex"]') ||
+          el.querySelector("picture img") ||
+          el.querySelector("img[data-src], img[src]");
         seen.set(href, {
           name: t.slice(0, 200),
           url: new URL(href, location.origin).href,
@@ -57,6 +79,7 @@ function readCards(page, lim) {
           priceOld: ps.length > 1 && Math.max(...ps) !== Math.min(...ps) ? Math.max(...ps) : null,
           rating: rating ? Number(rating.replace(",", ".")) : null,
           reviews: reviews[1] ? Math.round(Number(reviews[1].replace(",", ".")) * (reviews[2] ? 1000 : 1)) : null,
+          image: imgUrl(img),
           specs: txt.split("\n").filter((l) => /: /.test(l) && l.length < 120 && !/^(Цена|Рейтинг)/.test(l)).slice(0, 6),
         });
         if (seen.size >= lim) break;
