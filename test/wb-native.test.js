@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+// file:// URL: Node on Windows rejects absolute C:\ paths for --import.
 const transport = new StdioClientTransport({command:process.execPath,
-  args:['--import',fileURLToPath(new URL('./fixtures/wb-http.js',import.meta.url)),'src/index.js'],
+  args:['--import',new URL('./fixtures/wb-http.js',import.meta.url).href,'src/index.js'],
   env:{...process.env,MARKET_COMPACT:'1'},stderr:'ignore'});
 const client = new Client({name:'wb-regression',version:'1'});
 try {

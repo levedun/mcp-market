@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {existsSync} from 'node:fs';
 import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,6 +9,24 @@ import https from 'node:https';
 import net from 'node:net';
 import {chromium} from 'playwright';
 
+function resolveOpenssl() {
+  if (process.env.OPENSSL_BIN) return process.env.OPENSSL_BIN;
+  const winCandidates = [
+    join(process.env.ProgramFiles || 'C:\\Program Files', 'Git', 'usr', 'bin', 'openssl.exe'),
+    join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git', 'usr', 'bin', 'openssl.exe'),
+    join(process.env.ProgramFiles || 'C:\\Program Files', 'OpenSSL-Win64', 'bin', 'openssl.exe'),
+  ];
+  const candidates = process.platform === 'win32' ? ['openssl', ...winCandidates] : ['openssl'];
+  for (const bin of candidates) {
+    if (bin !== 'openssl' && !existsSync(bin)) continue;
+    try {
+      execFileSync(bin, ['version'], {stdio: 'ignore'});
+      return bin;
+    } catch { /* try next */ }
+  }
+  throw new Error('openssl not found (install Git for Windows / OpenSSL, or set OPENSSL_BIN)');
+}
+
 const folder = await mkdtemp(join(tmpdir(), 'market-proxy-test-'));
 const sockets = new Set();
 const track = server => server.on('connection', socket => {
@@ -16,7 +35,7 @@ const track = server => server.on('connection', socket => {
 const listen = server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 let target, proxy, shutdown;
 try {
-  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+  execFileSync(resolveOpenssl(), ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
     '-subj', '/CN=localhost', '-keyout', join(folder, 'key.pem'), '-out', join(folder, 'cert.pem')], {stdio: 'ignore'});
   let hits = 0, rejected = 0;
   const connects = [];
