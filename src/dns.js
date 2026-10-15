@@ -53,7 +53,21 @@ function readCards(page, lim) {
       if (out.length >= lim) break;
     }
     const total = (document.body.innerText.match(/Найдено\s+(\d[\d\s]*)\s+товар/) || [])[1];
-    return { items: out, nothingFound: /ничего не найдено/i.test(document.body.innerText), total: total ? Number(total.replace(/\s/g, "")) : null, url: location.href };
+    const skip = /^(главная|dns|поиск)$/i;
+    let categories = [];
+    for (const sel of [".breadcrumb a", ".breadcrumbs a", "[class*='breadcrumb'] a", "nav[aria-label*='breadcrumb' i] a"]) {
+      const links = [...document.querySelectorAll(sel)]
+        .map((a) => (a.innerText || "").replace(/\s+/g, " ").trim())
+        .filter((x) => x && !skip.test(x));
+      if (links.length) { categories = links; break; }
+    }
+    return {
+      items: out,
+      nothingFound: /ничего не найдено/i.test(document.body.innerText),
+      total: total ? Number(total.replace(/\s/g, "")) : null,
+      url: location.href,
+      categories: categories.length ? categories : null,
+    };
   }, lim);
 }
 
@@ -76,8 +90,12 @@ export async function dnsSearch({ query, limit = 12, sort = "popular", pages = 1
     all.push(...data.items);
     if (meta.total != null && all.length >= meta.total) break;
   }
-  const items = refine(all.map(({ specsText, ...it }) => ({ ...it, specs: parseCardSpecs(specsText) })), opts, limit);
-  return { query, sort, scanned: all.length, totalOnSite: meta?.total ?? null, nothingFound: meta?.nothingFound ?? false, count: items.length, items };
+  const categories = meta?.categories || null;
+  const refined = refine(all.map(({ specsText, ...it }) => ({ ...it, specs: parseCardSpecs(specsText) })), opts, limit);
+  const items = categories?.length
+    ? refined.map((it) => (it.categories?.length ? it : { ...it, categories }))
+    : refined;
+  return { query, sort, scanned: all.length, totalOnSite: meta?.total ?? null, nothingFound: meta?.nothingFound ?? false, categories, count: items.length, items };
 }
 
 export async function dnsProduct({ product }) {

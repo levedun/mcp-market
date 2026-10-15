@@ -37,11 +37,13 @@ import { upsertProducts, listProducts, countProducts, listCategoryTree } from ".
 {
   const fromSearch = extractProducts("ozon_search", {
     items: [
-      { sku: "1", name: "A", price: 10, url: "https://www.ozon.ru/product/1/" },
+      { sku: "1", name: "A", price: 10, url: "https://www.ozon.ru/product/1/", categories: ["Электроника", "USB-флешки"] },
       { sku: "2", name: "B", price: 20, url: "https://www.ozon.ru/product/2/" },
     ],
   });
   assert.equal(fromSearch.length, 2);
+  assert.deepEqual(fromSearch[0].category_path, ["Электроника", "USB-флешки"]);
+  assert.equal(fromSearch[1].category_path, null);
 
   const fromCompare = extractProducts("compare", {
     items: [
