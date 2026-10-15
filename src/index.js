@@ -12,6 +12,7 @@ import { wbCard } from "./wildberries.js";
 import { compare } from "./compare.js";
 import { filterSchema } from "./rank.js";
 import { shutdown } from "./browser.js";
+import { ingestToolResult } from "./catalog/index.js";
 
 const log = (...a) => console.error("[market-mcp]", ...a);
 const TOOL_TIMEOUT_MS = 110000; // multi-page walks and compare need more than one page load
@@ -54,6 +55,7 @@ function tool(label, fn, withImage = false) {
   return async (args) => {
     try {
       const result = await withTimeout(fn(args), TOOL_TIMEOUT_MS, label);
+      ingestToolResult(label, result);
       const image = withImage ? result.imageContent : undefined;
       if (withImage) delete result.imageContent;
       let text = JSON.stringify(COMPACT ? shrink(result) : result, null, COMPACT ? 0 : 2);
