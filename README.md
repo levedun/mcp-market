@@ -2,15 +2,15 @@
 
 MCP-сервер для российских площадок: **Ozon**, **DNS**, **Яндекс.Маркет**, публичные карточки **Wildberries**. Поиск с фильтрами, характеристики, отзывы и сравнение кандидатов по реальным отзывам покупателей. Только чтение: без логина, корзины и оплаты.
 
-Форк [eduard256/ozon-mcp-server](https://github.com/eduard256/ozon-mcp-server), см. [что изменено](#что-изменено-относительно-форка).
+Форк [dpGorbunov/market-mcp](https://github.com/dpGorbunov/market-mcp), который в свою очередь является форком [eduard256/ozon-mcp-server](https://github.com/eduard256/ozon-mcp-server); см. [что изменено](#что-изменено-относительно-форка).
 
 ## Установка
 
 Node 20+ и Chromium для Playwright.
 
 ```bash
-git clone https://github.com/dpGorbunov/market-mcp.git
-cd market-mcp && npm install && npx playwright install chromium
+git clone https://github.com/levedun/mcp-market.git
+cd mcp-market && npm install && npx playwright install chromium
 ```
 
 Claude Code:
