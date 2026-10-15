@@ -88,6 +88,8 @@ npm test                  # офлайн-тесты парсеров и филь
 node scripts/probe.mjs    # живая проверка всех площадок
 ```
 
+На Windows для `proxy.test.js` нужен `openssl` в PATH (часто уже есть в Git for Windows: `...\Git\usr\bin`). Иначе задайте `OPENSSL_BIN` на полный путь к `openssl.exe`.
+
 Пока сервер запущен, профиль занят: для пробы скопировать его (`cp -R ~/.market-mcp/profile ~/.market-mcp/profile-dev`) и запускать с `MARKET_PROFILE_DIR=~/.market-mcp/profile-dev`.
 
 `src/browser.js` браузер, антибот и очереди; `src/rank.js` фильтр и ранжирование; `src/ozon.js` с `src/parse.js`, `src/dns.js` с `src/parse_dns.js`, `src/yandex.js` площадки; `src/compare.js` сравнение; `src/index.js` регистрация инструментов. Логи идут в stderr, stdout занят JSON-RPC.

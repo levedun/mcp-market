@@ -2,12 +2,26 @@ import assert from 'node:assert/strict';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {setTimeout as sleep} from 'node:timers/promises';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+// file:// URL: Node on Windows rejects absolute C:\ paths for --import.
+const dnsFixture = new URL('./fixtures/dns-browser.js', import.meta.url).href;
+// Chromium on Windows can keep chrome_debug.log locked briefly after shutdown.
+async function rmQuiet(path) {
+  for (let i = 0; i < 15; i++) {
+    try {
+      await rm(path, {recursive: true, force: true});
+      return;
+    } catch (err) {
+      if (err?.code !== 'EBUSY' && err?.code !== 'EPERM') throw err;
+      await sleep(100 * (i + 1));
+    }
+  }
+}
 const folder = await mkdtemp(join(tmpdir(), 'dns-fixture-'));
 const transport = new StdioClientTransport({command: process.execPath,
-  args: ['--import', fileURLToPath(new URL('./fixtures/dns-browser.js', import.meta.url)), 'src/index.js'],
+  args: ['--import', dnsFixture, 'src/index.js'],
   env: {...process.env, MARKET_PROFILE_DIR: folder, MARKET_HEADLESS: 'true', MARKET_CAPTCHA_WAIT_S: '0', MARKET_CHALLENGE_RELOAD_S: '3', MARKET_COMPACT: '0'},
   stderr: 'ignore'});
 const client = new Client({name: 'dns-regression', version: '1'});
@@ -55,7 +69,7 @@ try {
 }
 // Default compact output drops nulls; dimensions_mm must still carry every axis explicitly.
 const compactTransport = new StdioClientTransport({command: process.execPath,
-  args: ['--import', fileURLToPath(new URL('./fixtures/dns-browser.js', import.meta.url)), 'src/index.js'],
+  args: ['--import', dnsFixture, 'src/index.js'],
   env: {...process.env, MARKET_PROFILE_DIR: folder + '-compact', MARKET_HEADLESS: 'true', MARKET_CAPTCHA_WAIT_S: '0', MARKET_CHALLENGE_RELOAD_S: '3'},
   stderr: 'ignore'});
 const compactClient = new Client({name: 'dns-compact', version: '1'});
@@ -66,6 +80,6 @@ try {
   console.log('Compact output keeps explicit null dimensions');
 } finally {
   await compactClient.close();
-  await rm(folder, {recursive: true, force: true});
-  await rm(folder + '-compact', {recursive: true, force: true});
+  await rmQuiet(folder);
+  await rmQuiet(folder + '-compact');
 }
