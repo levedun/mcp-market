@@ -9,12 +9,15 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "test": "node test/browser.test.js && node test/parse.test.js && node test/parse_dns.test.js && node test/rank.test.js && node test/yandex.test.js && node test/urls.test.js && node test/proxy.test.js && node test/dns-product.test.js && node test/wildberries.test.js && node test/wb-native.test.js && node test/catalog.test.js && node test/profile.test.js",
+    "check": "find src test -name '*.js' -print0 | xargs -0 -n 1 node --check",
+    "test:unit": "node test/browser.test.js && node test/parse.test.js && node test/parse_dns.test.js && node test/rank.test.js && node test/yandex.test.js && node test/urls.test.js && node test/wildberries.test.js && node test/dimensions.test.js && node test/catalog.test.js && node test/profile.test.js",
+    "test:mcp": "node test/dns-product.test.js && node test/wb-native.test.js",
+    "test:browser": "node test/proxy.test.js",
+    "test": "npm run test:unit && npm run test:mcp && npm run test:browser",
+    "test:parse": "node test/parse.test.js",
     "catalog:list": "node scripts/catalog-list.mjs",
     "catalog:serve": "node scripts/catalog-serve.mjs",
-    "catalog:docker": "docker compose up -d --build",
-    "test:parse": "node test/parse.test.js",
-    "check": "find src test -name '*.js' -print0 | xargs -0 -n 1 node --check"
+    "catalog:docker": "docker compose up -d --build"
   },
   "keywords": [
     "mcp",

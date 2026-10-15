@@ -9,7 +9,22 @@ permissions:
   actions: write
 
 jobs:
-  test:
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run test:unit
+
+  mcp:
+    name: mcp
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -31,5 +46,42 @@ jobs:
       - name: Install Playwright system deps
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
-      - run: npm run check
-      - run: npm test
+      - run: npm run test:mcp
+
+  browser:
+    name: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Install Playwright system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      - run: npm run test:browser
+
+  # Single required status for branch protection (covers unit + mcp + browser).
+  ci:
+    name: ci
+    needs: [unit, mcp, browser]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: All suites passed
+        run: |
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.mcp.result }}" = success
+          test "${{ needs.browser.result }}" = success
