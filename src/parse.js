@@ -130,7 +130,8 @@ export function parseSearch(page, limit = 12) {
   const raw = grid?.items || [];
   const items = raw.map(parseSearchItem).filter(Boolean).slice(0, limit);
   const hasNext = !!widget(page, "infiniteVirtualPaginator")?.nextPage;
-  return { count: items.length, hasNext, items };
+  const categories = parseSearchCategoryPath(page);
+  return { count: items.length, hasNext, items, categories };
 }
 
 // ── search filters ──────────────────────────────────────────────────────────────
@@ -171,6 +172,30 @@ export function parseFilters(page) {
     }
   }
   return out;
+}
+
+/**
+ * Predicted category trail from search filters (same page as tiles).
+ * Ozon shows "Все категории" + the breadcrumb path when it predicted a leaf;
+ * sibling-only lists (no "Все категории") are alternatives, not a path → null.
+ */
+export function parseSearchCategoryPath(page) {
+  const cat = parseFilters(page).find((f) => f.type === "category" || f.key === "category");
+  const opts = cat?.options || [];
+  if (!opts.length) return null;
+  const isAll = (t) => /^все\s+категори/i.test(String(t || "").trim());
+  if (!opts.some((o) => isAll(o.title))) return null;
+  const path = opts
+    .filter((o) => o.title && !isAll(o.title))
+    .map((o) => String(o.title).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return path.length ? path : null;
+}
+
+/** Stamp search-predicted categories onto items that lack their own. */
+export function withSearchCategories(items, categories) {
+  if (!categories?.length || !items?.length) return items || [];
+  return items.map((it) => (it.categories?.length ? it : { ...it, categories }));
 }
 
 // ── product details ─────────────────────────────────────────────────────────────

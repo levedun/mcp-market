@@ -1,6 +1,6 @@
 // Offline parser tests against saved composer-api samples. No browser/network.
 import { readFileSync } from "fs";
-import { parseSearch, parseDetails, parseReviews, parseFullCharacteristics, parseBreadcrumbs } from "../src/parse.js";
+import { parseSearch, parseDetails, parseReviews, parseFullCharacteristics, parseBreadcrumbs, parseSearchCategoryPath, withSearchCategories } from "../src/parse.js";
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../samples/${f}`, import.meta.url), "utf8"));
 let failed = 0;
@@ -18,6 +18,15 @@ check(!!it.sku, "item has sku");
 check(typeof it.price === "number", "item price is number");
 check(it.url?.startsWith("https://") && !it.url.includes("?"), "item url clean+absolute");
 check(s.items.every((x) => x.price), "every item has a price");
+check(
+  Array.isArray(s.categories) && s.categories.join(">") === "Электроника>Телефоны и смарт-часы>Смартфоны",
+  `search categories: ${JSON.stringify(s.categories)}`
+);
+check(parseSearchCategoryPath(load("search.json")).join(">") === s.categories.join(">"), "parseSearchCategoryPath matches parseSearch");
+check(parseSearchCategoryPath(load("search_filters.json")) == null, "sibling-only category filter is not a path");
+const stamped = withSearchCategories([{ sku: "1", name: "A" }], ["Электроника", "Смартфоны"]);
+check(stamped[0].categories?.[1] === "Смартфоны", "withSearchCategories stamps path");
+check(withSearchCategories([{ sku: "1", categories: ["X"] }], ["Y"])[0].categories[0] === "X", "withSearchCategories keeps existing");
 
 console.error("── parseDetails ──");
 const d = parseDetails(load("pdp.json"));

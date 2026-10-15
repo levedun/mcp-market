@@ -61,7 +61,21 @@ function readCards(page, lim) {
         });
         if (seen.size >= lim) break;
       }
-      return [...seen.values()];
+      const skip = /^(яндекс\.?\s*маркет|главная|поиск)$/i;
+      let categories = [];
+      for (const sel of [
+        '[data-auto="breadcrumb"] a',
+        '[data-zone-name="breadcrumb"] a',
+        ".breadcrumbs a",
+        "[class*='breadcrumb'] a",
+        "nav[aria-label*='breadcrumb' i] a",
+      ]) {
+        const links = [...document.querySelectorAll(sel)]
+          .map((a) => (a.innerText || "").replace(/\s+/g, " ").trim())
+          .filter((x) => x && !skip.test(x));
+        if (links.length) { categories = links; break; }
+      }
+      return { items: [...seen.values()], categories: categories.length ? categories : null };
     },
     [lim, pageHelpers.toString()]
   );
@@ -71,14 +85,19 @@ function readCards(page, lim) {
 export async function yandexSearch({ query, limit = 12, pages = 1, ...opts }) {
   if (!query || !String(query).trim()) throw new Error("query is required");
   const all = [];
+  let categories = null;
   for (let n = 1; n <= pages; n++) {
     const url = `${BASE}/search?text=${encodeURIComponent(query)}${n > 1 ? `&page=${n}` : ""}`;
-    const items = await withPage(url, "yandex-search", (page) => readCards(page, 100));
-    if (!items.length) break;
-    all.push(...items);
+    const data = await withPage(url, "yandex-search", (page) => readCards(page, 100));
+    if (!categories && data.categories?.length) categories = data.categories;
+    if (!data.items.length) break;
+    all.push(...data.items);
   }
-  const items = refine(all, opts, limit);
-  return { query, scanned: all.length, count: items.length, items };
+  const refined = refine(all, opts, limit);
+  const items = categories?.length
+    ? refined.map((it) => (it.categories?.length ? it : { ...it, categories }))
+    : refined;
+  return { query, scanned: all.length, categories, count: items.length, items };
 }
 
 export function cardUrl(product) {

@@ -1,6 +1,6 @@
 // High-level Ozon operations: build composer-api paths, fetch via the browser, parse to plain data.
 import { fetchJson, openPage, queued, shareTarget } from "./browser.js";
-import { parseSearch, parseDetails, parseReviews, parseFilters, parseFullCharacteristics } from "./parse.js";
+import { parseSearch, parseDetails, parseReviews, parseFilters, parseFullCharacteristics, withSearchCategories } from "./parse.js";
 import { refine } from "./rank.js";
 import { productUrl } from "./urls.js";
 import { withItemDimensions } from "./dimensions.js";
@@ -63,13 +63,14 @@ export async function search({ query, sort = "popular", pages = 1, limit = 12, h
   }
   const all = [];
   let parsed = parseSearch(page, 100);
+  const categories = parsed.categories || null;
   all.push(...parsed.items);
   for (let n = 2; n <= pages && parsed.hasNext; n++) {
     parsed = parseSearch(await fetchJson(`${path}&page=${n}`), 100);
     all.push(...parsed.items);
   }
-  const items = refine(all, opts, limit);
-  return { query, sort, pagesWalked: Math.min(pages, all.length ? pages : 1), scanned: all.length, serverBrand, count: items.length, items };
+  const items = withSearchCategories(refine(all, opts, limit), categories);
+  return { query, sort, pagesWalked: Math.min(pages, all.length ? pages : 1), scanned: all.length, serverBrand, categories, count: items.length, items };
 }
 
 /** Фильтры, которые Ozon предлагает для запроса (бренды с id, тип, страна, диапазоны). Ключи идут в search.filters. */
