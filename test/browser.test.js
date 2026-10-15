@@ -71,5 +71,6 @@ console.log('protectPage CDP interception (no ctx.route) passed');
 const { launchArgs } = await import('../src/browser.js');
 assert.ok(launchArgs('linux', false).includes('--window-position=76,42'));
 assert.ok(launchArgs('darwin', true).includes('--window-position=20000,20000'), 'macOS hides the window off-screen');
+assert.ok(launchArgs('win32', true).includes('--window-position=20000,20000'), 'Windows hides the window off-screen');
 assert.ok(!launchArgs('darwin', false).some((a) => a.startsWith('--window-position')), 'visible macOS window keeps OS placement');
 console.log('launch window position passed');

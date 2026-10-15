@@ -15,6 +15,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { execFile } from "child_process";
 import { navigationSite, productUrl, requestAllowed, shareLink } from "./urls.js";
+import { reclaimProfile } from "./profile.js";
 
 const OZON_HOME = "https://www.ozon.ru/";
 const OZON_API = "https://www.ozon.ru/api/composer-api.bx/page/json/v2?url=";
@@ -28,17 +29,20 @@ const CHALLENGE_RELOAD_MS = 1000 * Number(process.env.MARKET_CHALLENGE_RELOAD_S 
 // Титулы страниц-заглушек антибота у всех площадок.
 const CHALLENGE = /antibot|доступ ограничен|нет соединения|captcha|проверка браузера|qrator|robot|вы\s+не\s+робот|attention required|access denied/i;
 
-// Окно нужно антиботам, но пользователю не нужно. Уводить его за экран macOS не даёт (возвращает
-// на экран), поэтому после запуска прячем процесс Chromium как по Cmd+H через System Events
-// (MARKET_HIDE_WINDOW=0 выключает; окно понадобится, чтобы решить капчу руками).
-const HIDE_WINDOW = process.env.MARKET_HIDE_WINDOW !== "0" && process.platform === "darwin";
-// Окно всё равно создаётся на долю секунды до скрытия: делаем его маленьким и просим положить
-// в дальний угол (macOS подтянет к краю экрана). На вёрстку не влияет: вьюпорт задаёт Playwright.
+// Окно нужно антиботам, но пользователю не нужно.
+// macOS: прячем процесс через System Events (Cmd+H); off-screen сам возвращает окно.
+// Windows: достаточно --window-position за край экрана (MARKET_HIDE_WINDOW=0 покажет окно).
+const HIDE_WINDOW =
+  process.env.MARKET_HIDE_WINDOW !== "0" &&
+  (process.platform === "darwin" || process.platform === "win32");
 // Без оконного менеджера (серверный Xvfb) окно встаёт в (10,10), и антибот Ozon такой браузер не
-// пропускает (проверено 2026-09-22); вне macOS ставим окну обычную позицию на рабочем столе.
+// пропускает (проверено 2026-09-22); на linux без hide — обычная позиция на рабочем столе.
 export function launchArgs(platform, hideWindow) {
-  const position = hideWindow ? ["--window-position=20000,20000", "--window-size=320,240"]
-    : platform === "darwin" ? [] : ["--window-position=76,42"];
+  const position = hideWindow
+    ? ["--window-position=20000,20000", "--window-size=320,240"]
+    : platform === "darwin"
+      ? []
+      : ["--window-position=76,42"];
   return ["--disable-blink-features=AutomationControlled", "--no-first-run", "--no-default-browser-check", "--mute-audio", ...position];
 }
 const LAUNCH_ARGS = launchArgs(process.platform, HIDE_WINDOW);
@@ -46,7 +50,7 @@ const LAUNCH_ARGS = launchArgs(process.platform, HIDE_WINDOW);
 const BROWSER_PROC = '(every process whose name contains "Chrome for Testing" or name is "Chromium")';
 
 function setWindowVisible(visible) {
-  if (!HIDE_WINDOW) return Promise.resolve();
+  if (!HIDE_WINDOW || process.platform !== "darwin") return Promise.resolve();
   const script = `tell application "System Events" to set visible of ${BROWSER_PROC} to ${visible}`;
   return new Promise((res) => execFile("osascript", ["-e", script], (err) => { if (err) log("window:", err.message); res(); }));
 }
@@ -104,15 +108,30 @@ function resetIdle() {
 
 async function launch() {
   log(`launching chromium (${HEADLESS ? "headless" : "headed"}), profile ${PROFILE}`);
+  await reclaimProfile(PROFILE);
   hideEarly();
-  context = await chromium.launchPersistentContext(PROFILE, {
-    headless: HEADLESS,
-    ...(process.env.MARKET_PROXY_SERVER ? {proxy: {server: process.env.MARKET_PROXY_SERVER}} : {}),
-    serviceWorkers: 'block',
-    args: LAUNCH_ARGS,
-    locale: "ru-RU",
-    viewport: HIDE_WINDOW ? null : { width: 1280, height: 860 }, // при скрытии окно 320x240, вьюпорт страниц задаётся ниже
-  });
+  try {
+    context = await chromium.launchPersistentContext(PROFILE, {
+      headless: HEADLESS,
+      ...(process.env.MARKET_PROXY_SERVER ? { proxy: { server: process.env.MARKET_PROXY_SERVER } } : {}),
+      serviceWorkers: "block",
+      args: LAUNCH_ARGS,
+      locale: "ru-RU",
+      viewport: HIDE_WINDOW ? null : { width: 1280, height: 860 }, // при скрытии окно 320x240, вьюпорт страниц задаётся ниже
+    });
+  } catch (err) {
+    // One more reclaim if another MCP raced us for the profile.
+    log("launch failed, reclaim and retry:", err?.message);
+    await reclaimProfile(PROFILE);
+    context = await chromium.launchPersistentContext(PROFILE, {
+      headless: HEADLESS,
+      ...(process.env.MARKET_PROXY_SERVER ? { proxy: { server: process.env.MARKET_PROXY_SERVER } } : {}),
+      serviceWorkers: "block",
+      args: LAUNCH_ARGS,
+      locale: "ru-RU",
+      viewport: HIDE_WINDOW ? null : { width: 1280, height: 860 },
+    });
+  }
   await protectContext(context, pageSites);
   context.on("close", () => {
     context = null;
@@ -313,5 +332,9 @@ export async function shutdown() {
     const b = ctx?.browser();
     await ctx?.close();
     await b?.close(); // persistent context не всегда гасит процесс Chromium
+  } catch {}
+  // Windows often leaves chrome.exe holding the profile after close().
+  try {
+    await reclaimProfile(PROFILE);
   } catch {}
 }
