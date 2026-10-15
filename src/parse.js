@@ -178,6 +178,7 @@ export function parseFilters(page) {
  * Predicted category trail from search filters (same page as tiles).
  * Ozon shows "Все категории" + the breadcrumb path when it predicted a leaf;
  * sibling-only lists (no "Все категории") are alternatives, not a path → null.
+ * Trailing sibling leaf labels (игровые/детские кресла, …) are collapsed.
  */
 export function parseSearchCategoryPath(page) {
   const cat = parseFilters(page).find((f) => f.type === "category" || f.key === "category");
@@ -189,7 +190,28 @@ export function parseSearchCategoryPath(page) {
     .filter((o) => o.title && !isAll(o.title))
     .map((o) => String(o.title).replace(/\s+/g, " ").trim())
     .filter(Boolean);
-  return path.length ? path : null;
+  if (!path.length) return null;
+  // Prefer rising `level` when Ozon provides it; else collapse leaf-sibling tails.
+  const leveled = opts.filter((o) => o.title && !isAll(o.title) && o.level != null);
+  if (leveled.length === path.length) {
+    const levels = leveled.map((o) => Number(o.level));
+    const rising = levels.every((lv, i) => i === 0 || lv >= levels[i - 1]);
+    const distinct = new Set(levels).size > 1;
+    if (rising && distinct) {
+      return path;
+    }
+  }
+  return collapseOzonSiblingTail(path);
+}
+
+/** Drop trailing peer leaf categories that Ozon lists after a real trail. */
+function collapseOzonSiblingTail(path) {
+  const leaf = /кресл|мышь|мыши|стул|флеш|наушник|клавиатур|монитор|коврик|гарнитур/i;
+  if (path.length < 2) return path;
+  let end = path.length - 1;
+  while (end > 0 && leaf.test(path[end]) && leaf.test(path[end - 1])) end--;
+  if (end < path.length - 1 && leaf.test(path[end])) return path.slice(0, end + 1);
+  return path;
 }
 
 /** Stamp search-predicted categories onto items that lack their own. */

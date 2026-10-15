@@ -2,7 +2,7 @@
 // Local catalog viewer: node scripts/catalog-serve.mjs  [port]
 // Reads ~/.market-mcp/catalog.db (or MARKET_CATALOG_DB). Do not run as public server.
 import { createServer } from "node:http";
-import { readFileSync, existsSync, copyFileSync, unlinkSync } from "node:fs";
+import { readFileSync, existsSync, copyFileSync, unlinkSync, statSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { catalogDbPath, openCatalogDb, listProducts, countProducts, listCategoryTree } from "../src/catalog/index.js";
@@ -16,14 +16,32 @@ const sourceDbPath = process.env.MARKET_CATALOG_DB || catalogDbPath();
 // Docker Desktop on Windows cannot mmap SQLite WAL on a bind mount → copy to Linux fs.
 const useSnapshot = process.env.CATALOG_SNAPSHOT === "1";
 const snapPath = process.env.CATALOG_SNAPSHOT_PATH || "/tmp/catalog-snap.db";
+/** Reuse snapshot until source mtime changes (typeahead must not copy on every keystroke). */
+let snapSourceMtimeMs = -1;
 
 function copyIfExists(from, to) {
   if (!existsSync(from)) return;
   copyFileSync(from, to);
 }
 
-/** Fresh copy of .db (+ wal/shm) onto a local path so node:sqlite can open it. */
+function sourceMtimeMs(src) {
+  try {
+    let t = statSync(src).mtimeMs;
+    for (const suffix of ["-wal", "-shm"]) {
+      try {
+        t = Math.max(t, statSync(src + suffix).mtimeMs);
+      } catch { /* no wal/shm */ }
+    }
+    return t;
+  } catch {
+    return -1;
+  }
+}
+
+/** Copy .db (+ wal/shm) onto a local path so node:sqlite can open it. Skip if unchanged. */
 function snapshotDb(src) {
+  const mtime = sourceMtimeMs(src);
+  if (mtime === snapSourceMtimeMs && existsSync(snapPath)) return snapPath;
   for (const suffix of ["", "-wal", "-shm"]) {
     try {
       if (existsSync(snapPath + suffix)) unlinkSync(snapPath + suffix);
@@ -32,6 +50,7 @@ function snapshotDb(src) {
   copyFileSync(src, snapPath);
   copyIfExists(src + "-wal", snapPath + "-wal");
   copyIfExists(src + "-shm", snapPath + "-shm");
+  snapSourceMtimeMs = mtime;
   return snapPath;
 }
 
@@ -69,8 +88,8 @@ const server = createServer((req, res) => {
       const tree = listCategoryTree(db, { marketplace });
       const total = countProducts(db);
       const withCatSql = marketplace
-        ? "SELECT COUNT(*) AS n FROM products WHERE marketplace = ? AND category_path IS NOT NULL"
-        : "SELECT COUNT(*) AS n FROM products WHERE category_path IS NOT NULL";
+        ? "SELECT COUNT(*) AS n FROM products WHERE marketplace = ? AND (category_norm IS NOT NULL OR category_path IS NOT NULL)"
+        : "SELECT COUNT(*) AS n FROM products WHERE category_norm IS NOT NULL OR category_path IS NOT NULL";
       let withCat = 0;
       try {
         withCat = marketplace
@@ -93,14 +112,12 @@ const server = createServer((req, res) => {
       if (!db) return json(res, 200, { path: sourceDbPath, total: 0, items: [], note: "catalog.db not created yet" });
       const marketplace = url.searchParams.get("marketplace") || null;
       const category = url.searchParams.get("category") || null;
-      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || 100)));
-      const q = (url.searchParams.get("q") || "").trim().toLowerCase();
-      let items = listProducts(db, { marketplace, category, limit: 2000 });
-      if (q) items = items.filter((p) => (p.name || "").toLowerCase().includes(q) || (p.brand || "").toLowerCase().includes(q));
-      items = items.slice(0, limit);
+      const limit = Math.min(2000, Math.max(1, Number(url.searchParams.get("limit") || 100)));
+      const q = (url.searchParams.get("q") || "").trim() || null;
+      const items = listProducts(db, { marketplace, category, q, limit });
       const total = countProducts(db);
       db.close();
-      return json(res, 200, { path: sourceDbPath, total, showing: items.length, marketplace, category, items });
+      return json(res, 200, { path: sourceDbPath, total, showing: items.length, marketplace, category, q, items });
     } catch (err) {
       return json(res, 500, { error: err?.message || String(err) });
     }

@@ -69,7 +69,7 @@ Ozon читается из внутреннего composer-api (JSON, 0.3-1 с �
 | `MARKET_CATALOG` | выкл | `1` — писать найденные товары в SQLite-каталог (нормализованные карточки + снимки цены/рейтинга) |
 | `MARKET_CATALOG_DB` | `~/.market-mcp/catalog.db` | путь к файлу каталога |
 
-Каталог не меняет ответы MCP. Путь категорий (`categories` → `category_path`) пишется из поиска (предсказание Ozon в фильтре «Категория», breadcrumbs DNS/Яндекс на выдаче) и из карточки (details / product / card); пустой поиск путь не затирает. Даты `first_seen_at` / `last_seen_at`. Витрина: сайдбар категорий слева, детали выбранной строки справа + ссылка на площадку, колонка «Обновлён». Просмотр: `npm run catalog:list`, локально `npm run catalog:serve`, или постоянно в Docker Desktop:
+Каталог не меняет ответы MCP. Сырой путь площадки (`categories` → `category_path`) пишется из поиска (предсказание Ozon в фильтре «Категория», breadcrumbs DNS/Яндекс на выдаче) и из карточки; пустой поиск путь не затирает. Параллельно считается общий `category_norm` (правила + название), чтобы дерево в витрине не плодило разные таксономии Ozon/DNS/Яндекс. После смены правил: `npm run catalog:backfill-norm`. Даты `first_seen_at` / `last_seen_at`. Витрина: сайдбар по `category_norm`, в деталях канон + сырой путь площадки. Просмотр: `npm run catalog:list`, локально `npm run catalog:serve`, или постоянно в Docker Desktop:
 
 ```bash
 docker compose up -d --build
