@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractProducts, normalizeItem } from "../src/catalog/normalize.js";
 import { openCatalogDb, metricsChanged } from "../src/catalog/db.js";
-import { upsertProducts, listProducts, countProducts } from "../src/catalog/ingest.js";
+import { upsertProducts, listProducts, countProducts, listCategoryTree } from "../src/catalog/ingest.js";
 
 {
   const ozon = normalizeItem({
@@ -17,10 +17,12 @@ import { upsertProducts, listProducts, countProducts } from "../src/catalog/inge
     brand: "ASUS",
     url: "https://www.ozon.ru/product/123/",
     image: "https://cdn/x.jpg",
+    categories: ["Электроника", "Ноутбуки"],
   }, "ozon");
   assert.equal(ozon.marketplace, "ozon");
   assert.equal(ozon.external_id, "123");
   assert.equal(ozon.old_price, 60000);
+  assert.deepEqual(ozon.category_path, ["Электроника", "Ноутбуки"]);
 }
 
 {
@@ -70,23 +72,38 @@ import { upsertProducts, listProducts, countProducts } from "../src/catalog/inge
     rating: 4.5,
     reviews_count: 3,
     image_url: null,
+    category_path: ["Электроника", "Смартфоны"],
     attrs: null,
   };
   let s = upsertProducts(db, [p], { sourceTool: "ozon_search", now: "2026-01-01T00:00:00.000Z" });
   assert.equal(s.upserted, 1);
   assert.equal(s.snapshots, 1);
   assert.equal(countProducts(db), 1);
+  assert.deepEqual(listProducts(db)[0].category_path, ["Электроника", "Смартфоны"]);
 
   s = upsertProducts(db, [p], { sourceTool: "ozon_search", now: "2026-01-02T00:00:00.000Z" });
   assert.equal(s.snapshots, 0); // unchanged metrics → no snapshot
   assert.equal(listProducts(db)[0].seen_count, 2);
 
-  s = upsertProducts(db, [{ ...p, price: 90 }], { sourceTool: "ozon_search", now: "2026-01-03T00:00:00.000Z" });
+  // search without categories must not wipe path
+  s = upsertProducts(db, [{ ...p, category_path: null, price: 90 }], { sourceTool: "ozon_search", now: "2026-01-03T00:00:00.000Z" });
   assert.equal(s.snapshots, 1);
   assert.equal(listProducts(db)[0].price, 90);
+  assert.deepEqual(listProducts(db)[0].category_path, ["Электроника", "Смартфоны"]);
+
+  upsertProducts(db, [{
+    ...p,
+    external_id: "43",
+    name: "RAM",
+    category_path: ["Электроника", "Комплектующие", "ОЗУ"],
+  }], { now: "2026-01-04T00:00:00.000Z" });
+  const tree = listCategoryTree(db);
+  assert.equal(tree[0].name, "Электроника");
+  assert.equal(tree[0].count, 2);
+  assert.equal(listProducts(db, { category: "Электроника\u001fСмартфоны" }).length, 1);
 
   const snaps = db.prepare("SELECT COUNT(*) AS n FROM product_snapshots").get().n;
-  assert.equal(snaps, 2);
+  assert.equal(snaps, 3);
   assert.equal(metricsChanged(null, p), true);
   db.close();
   rmSync(dir, { recursive: true, force: true });

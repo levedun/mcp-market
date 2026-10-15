@@ -61,6 +61,17 @@ function attrsFrom(raw) {
   return Object.keys(out).length ? out : null;
 }
 
+/** Breadcrumb trail → ["Электроника","Смартфоны"]. Empty/missing → null (do not wipe on upsert). */
+function categoryPathFrom(raw) {
+  const src = raw.categories ?? raw.category_path ?? raw.breadcrumbs;
+  if (!Array.isArray(src) || !src.length) return null;
+  const path = src
+    .map((x) => (typeof x === "string" ? x : x?.text || x?.title || x?.name || ""))
+    .map((s) => String(s).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return path.length ? path : null;
+}
+
 /** Map one raw product-like object to a catalog row, or null if unusable. */
 export function normalizeItem(raw, siteHint = null) {
   if (!raw || typeof raw !== "object" || raw.error) return null;
@@ -97,6 +108,7 @@ export function normalizeItem(raw, siteHint = null) {
     rating,
     reviews_count: reviewsCount != null ? Math.round(reviewsCount) : null,
     image_url: imageUrl,
+    category_path: categoryPathFrom(raw),
     attrs: attrsFrom(raw),
   };
 }

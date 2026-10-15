@@ -1,6 +1,6 @@
 // Offline parser tests against saved composer-api samples. No browser/network.
 import { readFileSync } from "fs";
-import { parseSearch, parseDetails, parseReviews, parseFullCharacteristics } from "../src/parse.js";
+import { parseSearch, parseDetails, parseReviews, parseFullCharacteristics, parseBreadcrumbs } from "../src/parse.js";
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../samples/${f}`, import.meta.url), "utf8"));
 let failed = 0;
@@ -28,6 +28,9 @@ check(!!d.name, "details has name");
 check(d.images.length > 0, "details has images");
 check(Object.keys(d.characteristics).length > 0, "details has characteristics");
 check(d.variants === null || typeof d.variants === "number", `details variants: ${d.variants}`);
+check(Array.isArray(d.categories) && d.categories.length >= 3, `details categories: ${JSON.stringify(d.categories)}`);
+check(d.categories[0] === "Электроника", "first crumb is Электроника");
+check(parseBreadcrumbs(load("pdp.json")).join(">") === d.categories.join(">"), "parseBreadcrumbs matches details");
 
 console.error("── parseFullCharacteristics ──");
 const fc = parseFullCharacteristics(load("pdp_features.json"));

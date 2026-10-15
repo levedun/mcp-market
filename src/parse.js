@@ -284,7 +284,16 @@ export function parseDetails(basePage) {
     seller: parseSeller(basePage),
     images: [...new Set(images)].slice(0, 10),
     characteristics: parseShortCharacteristics(basePage),
+    categories: parseBreadcrumbs(basePage),
   };
+}
+
+/** Category trail from the PDP breadCrumbs widget: ["Электроника","Смартфоны",...]. */
+export function parseBreadcrumbs(page) {
+  const list = widget(page, "breadCrumbs")?.breadcrumbs || [];
+  return list
+    .map((c) => String(c?.text || "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
 }
 
 // ── reviews ─────────────────────────────────────────────────────────────────────

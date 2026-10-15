@@ -25,23 +25,33 @@
     <span id="meta" class="meta"></span>
   </section>
 
-  <main>
-    <table>
-      <thead>
-        <tr>
-          <th></th>
-          <th>Площадка</th>
-          <th>Название</th>
-          <th>Цена</th>
-          <th>Рейтинг</th>
-          <th>Отзывы</th>
-          <th>Видели</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <p id="empty" class="empty hidden">Пока пусто. Включи <code>MARKET_CATALOG=1</code> и вызови search / card в MCP.</p>
-  </main>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-head">Категории</div>
+      <button type="button" class="cat-all active" id="cat-all" data-key="">Все</button>
+      <nav id="cat-tree" class="cat-tree" aria-label="Категории"></nav>
+      <p id="cat-empty" class="side-empty hidden">Появятся после карточек с breadcrumbs (details / product / card).</p>
+    </aside>
+
+    <main>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Площадка</th>
+            <th>Название</th>
+            <th>Цена</th>
+            <th>Рейтинг</th>
+            <th>Отзывы</th>
+            <th>Обновлён</th>
+            <th>Видели</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p id="empty" class="empty hidden">Пока пусто. Включи <code>MARKET_CATALOG=1</code> и вызови search / card в MCP.</p>
+    </main>
+  </div>
 
   <script src="/app.js" type="module"></script>
 </body>

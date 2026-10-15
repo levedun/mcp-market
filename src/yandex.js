@@ -138,6 +138,22 @@ export async function yandexCard({ product }) {
         characteristics: chars,
         image: document.querySelector('meta[property="og:image"]')?.content || null,
         images: new Function(`return (${gallerySrc})`)()(),
+        categories: (() => {
+          const skip = /^(главная|яндекс\.?\s*маркет|yandex)$/i;
+          for (const sel of [
+            '[data-auto="breadcrumb"] a',
+            '[data-zone-name="breadcrumb"] a',
+            ".breadcrumbs a",
+            "[class*='breadcrumb'] a",
+            "nav[aria-label*='breadcrumb' i] a",
+          ]) {
+            const links = [...document.querySelectorAll(sel)]
+              .map((a) => (a.innerText || "").replace(/\s+/g, " ").trim())
+              .filter((x) => x && !skip.test(x));
+            if (links.length) return links;
+          }
+          return [];
+        })(),
       };
     }, [pageHelpers.toString(), parseYandexCharacteristics.toString(), productId, parseYandexGallery.toString()]);
     const { image, images, ...card } = data;

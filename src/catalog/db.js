@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS products (
   rating REAL,
   reviews_count INTEGER,
   image_url TEXT,
+  category_path TEXT,
   attrs_json TEXT,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
@@ -53,19 +54,45 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_product_time
   ON product_snapshots(marketplace, external_id, seen_at DESC);
 `;
 
-export function openCatalogDb(dbPath) {
-  mkdirSync(dirname(dbPath), { recursive: true });
-  const db = new DatabaseSync(dbPath);
-  db.exec("PRAGMA journal_mode = WAL;");
-  db.exec("PRAGMA synchronous = NORMAL;");
-  db.exec(DDL);
-  const ver = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
-  if (!ver) {
-    db.prepare("INSERT INTO meta(key, value) VALUES('schema_version', ?)").run(String(SCHEMA_VERSION));
-  } else if (Number(ver.value) > SCHEMA_VERSION) {
-    throw new Error(`catalog DB schema ${ver.value} is newer than code ${SCHEMA_VERSION}`);
+function migrate(db, fromVer) {
+  if (fromVer < 2) {
+    const cols = db.prepare("PRAGMA table_info(products)").all().map((c) => c.name);
+    if (!cols.includes("category_path")) {
+      db.exec("ALTER TABLE products ADD COLUMN category_path TEXT");
+    }
   }
-  // Future: migrate when Number(ver.value) < SCHEMA_VERSION
+}
+
+/**
+ * @param {string} dbPath
+ * @param {{ readOnly?: boolean }} [opts] — viewer/snapshot: no WAL/DDL writes
+ */
+export function openCatalogDb(dbPath, opts = {}) {
+  if (!opts.readOnly) {
+    mkdirSync(dirname(dbPath), { recursive: true });
+  }
+  const db = opts.readOnly ? new DatabaseSync(dbPath, { readOnly: true }) : new DatabaseSync(dbPath);
+  if (!opts.readOnly) {
+    db.exec("PRAGMA journal_mode = WAL;");
+    db.exec("PRAGMA synchronous = NORMAL;");
+    db.exec(DDL);
+    const ver = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
+    const from = ver ? Number(ver.value) : 0;
+    if (ver && from > SCHEMA_VERSION) {
+      throw new Error(`catalog DB schema ${ver.value} is newer than code ${SCHEMA_VERSION}`);
+    }
+    migrate(db, from || 0);
+    if (!ver) {
+      db.prepare("INSERT INTO meta(key, value) VALUES('schema_version', ?)").run(String(SCHEMA_VERSION));
+    } else if (from < SCHEMA_VERSION) {
+      db.prepare("UPDATE meta SET value = ? WHERE key = 'schema_version'").run(String(SCHEMA_VERSION));
+    }
+  } else {
+    const ver = db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
+    if (ver && Number(ver.value) > SCHEMA_VERSION) {
+      throw new Error(`catalog DB schema ${ver.value} is newer than code ${SCHEMA_VERSION}`);
+    }
+  }
   return db;
 }
 

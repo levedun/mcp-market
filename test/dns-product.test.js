@@ -42,6 +42,7 @@ try {
   assert.deepEqual(data.dimensions_mm, {width: 389, depth: 320, height: 326});
   assert.equal(data.image_url, 'https://dns-shop.ru/img/af.jpg');
   assert.deepEqual(data.warnings, []);
+  assert.deepEqual(data.categories, ['Бытовая техника', 'Аэрогрили']);
   const embed = JSON.parse((await client.callTool({name: 'dns_product', arguments: {product: 'https://www.dns-shop.ru/product/f4c6689d51faed20/embed-only/'}})).content[0].text);
   assert.deepEqual(embed.dimensions_mm, {width: null, depth: null, height: null}, 'built-in width is never used as item width');
   assert.deepEqual(embed.warnings, ['Item dimensions are incomplete; packaging dimensions were not substituted.']);
@@ -63,6 +64,7 @@ try {
   assert.deepEqual(yandexData.dimensions_mm, {width: 1500, depth: 900, height: 750});
   assert.equal(yandexData.image_url, 'https://avatars.mds.yandex.net/table.jpg');
   assert.deepEqual(yandexData.warnings, []);
+  assert.deepEqual(yandexData.categories, ['Мебель', 'Столы']);
   console.log('Native DNS/Yandex MCP blocked-page and ordinary-card regressions passed');
 } finally {
   await client.close();

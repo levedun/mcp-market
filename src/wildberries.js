@@ -71,7 +71,11 @@ export function parseCard(card, id) {
     dimensions_mm[key] = Number.isFinite(numeric) && numeric > 0 ? numeric : null;
     dimension_sources[key] = value;
   }
-  return {id, name:card.imt_name.trim(), dimensions_mm, dimension_sources};
+  const categories = [card.subj_root_name, card.subj_name]
+    .map((x) => (typeof x === "string" ? x.trim() : ""))
+    .filter(Boolean)
+    .filter((x, i, arr) => arr.indexOf(x) === i);
+  return {id, name:card.imt_name.trim(), dimensions_mm, dimension_sources, categories};
 }
 
 export async function wbCard({product, include_image = false}) {
