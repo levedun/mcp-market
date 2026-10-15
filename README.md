@@ -59,7 +59,7 @@ Ozon читается из внутреннего composer-api (JSON, 0.3-1 с �
 | Переменная | По умолчанию | Смысл |
 |---|---|---|
 | `MARKET_PROFILE_DIR` | `~/.market-mcp/profile` | профиль Chromium с cookies |
-| `MARKET_HIDE_WINDOW` | `1` (только macOS) | прятать окно браузера; `0` показывать |
+| `MARKET_HIDE_WINDOW` | `1` (macOS, Windows) | прятать окно браузера; `0` показывать |
 | `MARKET_HEADLESS` | `false` | `true` без окна, но Ozon и DNS тогда выдают капчу |
 | `MARKET_CAPTCHA_WAIT_S` | `120` | сколько ждать ручного решения капчи |
 | `MARKET_IDLE_MIN` | `720` | через сколько минут простоя закрыть браузер |
@@ -69,7 +69,9 @@ Ozon читается из внутреннего composer-api (JSON, 0.3-1 с �
 | `MARKET_CATALOG` | выкл | `1` — писать найденные товары в SQLite-каталог (нормализованные карточки + снимки цены/рейтинга) |
 | `MARKET_CATALOG_DB` | `~/.market-mcp/catalog.db` | путь к файлу каталога |
 
-Каталог не меняет ответы MCP. Просмотр: `npm run catalog:list` (нужен Node 22+ с `node:sqlite`). Снимки в `product_snapshots` можно позже выгрузить в ClickHouse; React-витрина читает тот же `.db` через WAL.
+Каталог не меняет ответы MCP. Просмотр: `npm run catalog:list` или веб-витрина `npm run catalog:serve` → http://127.0.0.1:3847/ (Node 22+, `node:sqlite`). Снимки в `product_snapshots` можно позже выгрузить в ClickHouse.
+
+На Windows при перезапуске MCP старые процессы Chromium иногда держат профиль: перед запуском браузера сервер сам освобождает `~/.market-mcp/profile` (зомби + SingletonLock).
 
 На сервере без монитора браузер запускается в Xvfb с экраном `1920x1080x24` (`xvfb-run -a -s "-screen 0 1920x1080x24"`). Окну задаётся позиция `76,42`: без оконного менеджера оно встаёт в (10,10), и антибот Ozon такой браузер не пропускает. Headless-режим Ozon распознаёт даже с GPU и обычным User-Agent.
 

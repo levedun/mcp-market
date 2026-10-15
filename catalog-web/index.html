@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>market-mcp catalog</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">market-mcp <span>catalog</span></div>
+    <p class="hint">Товары, которые нашёл MCP. Только чтение из SQLite.</p>
+  </header>
+
+  <section class="toolbar">
+    <input id="q" type="search" placeholder="Поиск по названию / бренду" autocomplete="off" />
+    <select id="marketplace">
+      <option value="">Все площадки</option>
+      <option value="ozon">Ozon</option>
+      <option value="dns">DNS</option>
+      <option value="yandex">Яндекс</option>
+      <option value="wb">WB</option>
+    </select>
+    <button type="button" id="reload">Обновить</button>
+    <span id="meta" class="meta"></span>
+  </section>
+
+  <main>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Площадка</th>
+          <th>Название</th>
+          <th>Цена</th>
+          <th>Рейтинг</th>
+          <th>Отзывы</th>
+          <th>Видели</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p id="empty" class="empty hidden">Пока пусто. Включи <code>MARKET_CATALOG=1</code> и вызови search / card в MCP.</p>
+  </main>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
