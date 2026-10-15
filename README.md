@@ -69,7 +69,13 @@ Ozon читается из внутреннего composer-api (JSON, 0.3-1 с �
 | `MARKET_CATALOG` | выкл | `1` — писать найденные товары в SQLite-каталог (нормализованные карточки + снимки цены/рейтинга) |
 | `MARKET_CATALOG_DB` | `~/.market-mcp/catalog.db` | путь к файлу каталога |
 
-Каталог не меняет ответы MCP. Просмотр: `npm run catalog:list` или веб-витрина `npm run catalog:serve` → http://127.0.0.1:3847/ (Node 22+, `node:sqlite`). Снимки в `product_snapshots` можно позже выгрузить в ClickHouse.
+Каталог не меняет ответы MCP. В карточке (details / product / card) пишется путь категорий (`categories` → `category_path`) и даты `first_seen_at` / `last_seen_at`. Поиск без карточки категории не затирает. Витрина: сайдбар по дереву категорий + колонка «Обновлён». Просмотр: `npm run catalog:list`, локально `npm run catalog:serve`, или постоянно в Docker Desktop:
+
+```bash
+docker compose up -d --build
+```
+
+Открыть http://127.0.0.1:3847/. В контейнере рабочая папка `/home/mcp-market`, БД с хоста монтируется в `/home/mcp-market/data` (`%USERPROFILE%\.market-mcp`). На Docker Desktop (Windows) SQLite WAL с bind-mount даёт `disk I/O error` — в compose включён `CATALOG_SNAPSHOT=1`: перед чтением БД копируется в `/tmp`. `restart: unless-stopped` — витрина поднимается сама после перезагрузки Docker. MCP с браузером в Docker по-прежнему не кладём.
 
 На Windows при перезапуске MCP старые процессы Chromium иногда держат профиль: перед запуском браузера сервер сам освобождает `~/.market-mcp/profile` (зомби + SingletonLock).
 

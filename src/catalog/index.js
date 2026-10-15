@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { extractProducts } from "./normalize.js";
 import { openCatalogDb } from "./db.js";
-import { upsertProducts, listProducts, countProducts } from "./ingest.js";
+import { upsertProducts, listProducts, countProducts, listCategoryTree } from "./ingest.js";
 
 const log = (...a) => console.error("[catalog]", ...a);
 
@@ -57,4 +57,4 @@ export function catalogStats() {
   return { enabled: true, path: catalogDbPath(), count: countProducts(database) };
 }
 
-export { extractProducts, listProducts, countProducts, openCatalogDb };
+export { extractProducts, listProducts, countProducts, listCategoryTree, openCatalogDb };

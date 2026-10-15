@@ -1,0 +1,27 @@
+# Catalog web UI in Docker Desktop. MCP still runs on the host and writes catalog.db.
+# Start once: docker compose up -d --build
+# Open: http://127.0.0.1:3847/
+#
+# Workdir inside the container: /home/mcp-market
+# Host data: %USERPROFILE%\.market-mcp → /home/mcp-market/data
+
+services:
+  catalog:
+    build:
+      context: .
+      dockerfile: Dockerfile.catalog
+    image: mcp-market-catalog
+    container_name: mcp-market-catalog
+    working_dir: /home/mcp-market
+    ports:
+      - "3847:3847"
+    environment:
+      CATALOG_BIND: "0.0.0.0"
+      PORT: "3847"
+      MARKET_CATALOG_DB: /home/mcp-market/data/catalog.db
+      # Bind-mount WAL on Docker Desktop (Windows) → disk I/O; snapshot to /tmp each request
+      CATALOG_SNAPSHOT: "1"
+    volumes:
+      # Whole folder so host MCP can keep writing catalog.db (+ -wal/-shm)
+      - ${USERPROFILE}/.market-mcp:/home/mcp-market/data
+    restart: unless-stopped

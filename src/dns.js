@@ -115,7 +115,15 @@ export async function dnsProduct({ product }) {
         }
       }
       const image = document.querySelector('meta[property="og:image"]')?.content || null;
-      return { price: pm ? Number(pm[1]) : null, rating: rm ? Number(rm[1].replace(",", ".")) : null, reviews: rm ? Number(rm[2]) : null, characteristics, image };
+      const skip = /^(главная|dns)$/i;
+      let categories = [];
+      for (const sel of [".breadcrumb a", ".breadcrumbs a", "[class*='breadcrumb'] a", "nav[aria-label*='breadcrumb' i] a"]) {
+        const links = [...document.querySelectorAll(sel)]
+          .map((a) => (a.innerText || "").replace(/\s+/g, " ").trim())
+          .filter((x) => x && !skip.test(x));
+        if (links.length) { categories = links; break; }
+      }
+      return { price: pm ? Number(pm[1]) : null, rating: rm ? Number(rm[1].replace(",", ".")) : null, reviews: rm ? Number(rm[2]) : null, characteristics, image, categories };
     });
     const title = await page.title();
     const { image, ...card } = data;
