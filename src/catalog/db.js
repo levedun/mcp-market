@@ -5,7 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS products (
   reviews_count INTEGER,
   image_url TEXT,
   category_path TEXT,
+  category_norm TEXT,
   attrs_json TEXT,
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
@@ -55,10 +56,15 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_product_time
 `;
 
 function migrate(db, fromVer) {
+  const cols = () => db.prepare("PRAGMA table_info(products)").all().map((c) => c.name);
   if (fromVer < 2) {
-    const cols = db.prepare("PRAGMA table_info(products)").all().map((c) => c.name);
-    if (!cols.includes("category_path")) {
+    if (!cols().includes("category_path")) {
       db.exec("ALTER TABLE products ADD COLUMN category_path TEXT");
+    }
+  }
+  if (fromVer < 3) {
+    if (!cols().includes("category_norm")) {
+      db.exec("ALTER TABLE products ADD COLUMN category_norm TEXT");
     }
   }
 }

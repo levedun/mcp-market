@@ -4,7 +4,52 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractProducts, normalizeItem } from "../src/catalog/normalize.js";
 import { openCatalogDb, metricsChanged } from "../src/catalog/db.js";
-import { upsertProducts, listProducts, countProducts, listCategoryTree } from "../src/catalog/ingest.js";
+import { upsertProducts, listProducts, countProducts, listCategoryTree, matchesQuery, backfillCategoryNorm } from "../src/catalog/ingest.js";
+import { normalizeCategory, collapseSiblingTail, stripNoiseRoots } from "../src/catalog/categories.js";
+
+{
+  assert.deepEqual(stripNoiseRoots(["Каталог", "Офис и мебель"]), ["Офис и мебель"]);
+  assert.deepEqual(
+    collapseSiblingTail([
+      "Мебель",
+      "Компьютерная и офисная мебель",
+      "Кресла офисные и компьютерные",
+      "Офисные кресла",
+      "Компьютерные кресла игровые",
+      "Компьютерные кресла детские",
+    ]),
+    ["Мебель", "Компьютерная и офисная мебель", "Кресла офисные и компьютерные"]
+  );
+  assert.deepEqual(
+    normalizeCategory({ name: "Мышь беспроводная Logitech", category_path: ["Каталог", "Периферия"] }),
+    ["Электроника", "Периферия", "Мыши"]
+  );
+  assert.deepEqual(
+    normalizeCategory({
+      name: "Кресло игровое",
+      category_path: ["Каталог", "Офис и мебель", "Офисная мебель"],
+    }),
+    ["Мебель", "Кресла компьютерные"]
+  );
+  assert.deepEqual(
+    normalizeCategory({ name: "USB флешка 64GB", category_path: null }),
+    ["Электроника", "Накопители", "USB-флешки"]
+  );
+}
+
+{
+  const p = {
+    name: "Кресло компьютерное ZOMBIE",
+    brand: "ZOMBIE",
+    category_path: ["Мебель", "Кресла офисные"],
+  };
+  assert.equal(matchesQuery(p, ""), true);
+  assert.equal(matchesQuery(p, "крес"), true);
+  assert.equal(matchesQuery(p, "кресло комп"), true);
+  assert.equal(matchesQuery(p, "комп кресло"), true); // tokens, any order
+  assert.equal(matchesQuery(p, "офис"), true); // category
+  assert.equal(matchesQuery(p, "мышь"), false);
+}
 
 {
   const ozon = normalizeItem({
@@ -82,6 +127,7 @@ import { upsertProducts, listProducts, countProducts, listCategoryTree } from ".
   assert.equal(s.snapshots, 1);
   assert.equal(countProducts(db), 1);
   assert.deepEqual(listProducts(db)[0].category_path, ["Электроника", "Смартфоны"]);
+  assert.deepEqual(listProducts(db)[0].category_norm, ["Электроника", "Телефоны", "Смартфоны"]);
 
   s = upsertProducts(db, [p], { sourceTool: "ozon_search", now: "2026-01-02T00:00:00.000Z" });
   assert.equal(s.snapshots, 0); // unchanged metrics → no snapshot
@@ -96,13 +142,19 @@ import { upsertProducts, listProducts, countProducts, listCategoryTree } from ".
   upsertProducts(db, [{
     ...p,
     external_id: "43",
-    name: "RAM",
+    name: "RAM Kingston",
     category_path: ["Электроника", "Комплектующие", "ОЗУ"],
   }], { now: "2026-01-04T00:00:00.000Z" });
   const tree = listCategoryTree(db);
   assert.equal(tree[0].name, "Электроника");
   assert.equal(tree[0].count, 2);
-  assert.equal(listProducts(db, { category: "Электроника\u001fСмартфоны" }).length, 1);
+  assert.equal(listProducts(db, { category: "Электроника\u001fТелефоны\u001fСмартфоны" }).length, 1);
+  assert.equal(listProducts(db, { q: "смарт" }).length, 1);
+  assert.equal(listProducts(db, { q: "kingston памят" }).length, 1);
+  assert.equal(listProducts(db, { q: "ноутбук" }).length, 0);
+
+  const bf = backfillCategoryNorm(db);
+  assert.equal(bf.updated, 2);
 
   const snaps = db.prepare("SELECT COUNT(*) AS n FROM product_snapshots").get().n;
   assert.equal(snaps, 3);

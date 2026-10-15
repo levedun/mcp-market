@@ -8,7 +8,16 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { extractProducts } from "./normalize.js";
 import { openCatalogDb } from "./db.js";
-import { upsertProducts, listProducts, countProducts, listCategoryTree } from "./ingest.js";
+import {
+  upsertProducts,
+  listProducts,
+  countProducts,
+  listCategoryTree,
+  matchesQuery,
+  backfillCategoryNorm,
+  effectiveCategory,
+} from "./ingest.js";
+import { normalizeCategory, collapseSiblingTail, stripNoiseRoots } from "./categories.js";
 
 const log = (...a) => console.error("[catalog]", ...a);
 
@@ -57,4 +66,16 @@ export function catalogStats() {
   return { enabled: true, path: catalogDbPath(), count: countProducts(database) };
 }
 
-export { extractProducts, listProducts, countProducts, listCategoryTree, openCatalogDb };
+export {
+  extractProducts,
+  listProducts,
+  countProducts,
+  listCategoryTree,
+  matchesQuery,
+  backfillCategoryNorm,
+  effectiveCategory,
+  normalizeCategory,
+  collapseSiblingTail,
+  stripNoiseRoots,
+  openCatalogDb,
+};

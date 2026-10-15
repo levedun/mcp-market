@@ -12,7 +12,13 @@ const detailBody = document.getElementById("detail-body");
 let categoryKey = "";
 /** @type {Map<string, object>} */
 let itemsByKey = new Map();
+/** Last marketplace/category window from API (no text q). Instant typeahead filters this. */
+let cacheItems = [];
+let lastTotal = 0;
 let selectedKey = "";
+let loadAbort = null;
+let qTimer = null;
+let loadSeq = 0;
 
 function productKey(p) {
   return `${p.marketplace}\u001f${p.external_id}`;
@@ -41,6 +47,21 @@ function fmtWhen(iso) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** All query tokens must appear in name, brand or category path. */
+function matchesQuery(p, q) {
+  const tokens = String(q || "")
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!tokens.length) return true;
+  const hay = [p.name, p.brand, ...(p.category_norm || []), ...(p.category_path || [])]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return tokens.every((t) => hay.includes(t));
 }
 
 function setActiveCat(key) {
@@ -91,9 +112,17 @@ function showDetail(p) {
     p.old_price != null && p.price != null && p.old_price > p.price
       ? `<span class="old">${rub(p.old_price)}</span>`
       : "";
-  const crumb = p.category_path?.length
-    ? `<p class="detail-crumb">${esc(p.category_path.join(" › "))}</p>`
-    : "";
+  const norm = p.category_norm?.length ? p.category_norm : null;
+  const raw = p.category_path?.length ? p.category_path : null;
+  const crumb = norm
+    ? `<p class="detail-crumb">${esc(norm.join(" › "))}</p>`
+    : raw
+      ? `<p class="detail-crumb">${esc(raw.join(" › "))}</p>`
+      : "";
+  const rawLine =
+    norm && raw && raw.join("\u001f") !== norm.join("\u001f")
+      ? `<p class="detail-raw muted">На площадке: ${esc(raw.join(" › "))}</p>`
+      : "";
   const link = p.url
     ? `<a class="detail-link" href="${esc(p.url)}" target="_blank" rel="noopener">Открыть на площадке</a>`
     : `<p class="detail-no-link">Ссылка на источник отсутствует</p>`;
@@ -104,6 +133,7 @@ function showDetail(p) {
     <h2 class="detail-title">${esc(p.name)}</h2>
     ${p.brand ? `<p class="detail-brand">${esc(p.brand)}</p>` : ""}
     ${crumb}
+    ${rawLine}
     <dl class="detail-dl">
       <dt>Цена</dt><dd>${rub(p.price)}${oldPrice}</dd>
       <dt>Рейтинг</dt><dd>${p.rating != null ? p.rating.toFixed(1) : "—"}</dd>
@@ -121,56 +151,24 @@ function showDetail(p) {
   });
 }
 
-async function loadCategories() {
-  const params = new URLSearchParams();
-  if (mpEl.value) params.set("marketplace", mpEl.value);
-  const res = await fetch("/api/categories?" + params);
-  const data = await res.json();
-  if (data.error || !data.tree?.length) {
-    catTree.innerHTML = "";
-    catEmpty.classList.toggle("hidden", !!data.tree?.length);
-    if (categoryKey) setActiveCat("");
-    return;
-  }
-  catEmpty.classList.add("hidden");
-  catTree.innerHTML = renderTree(data.tree);
-  setActiveCat(categoryKey);
-}
-
-async function load() {
-  const params = new URLSearchParams();
-  if (mpEl.value) params.set("marketplace", mpEl.value);
-  if (qEl.value.trim()) params.set("q", qEl.value.trim());
-  if (categoryKey) params.set("category", categoryKey);
-  params.set("limit", "200");
-  const res = await fetch("/api/products?" + params);
-  const data = await res.json();
-  if (data.error) {
-    meta.textContent = data.error;
+function renderRows(items) {
+  itemsByKey = new Map(items.map((p) => [productKey(p), p]));
+  if (!items.length) {
     rows.innerHTML = "";
-    itemsByKey = new Map();
     empty.classList.remove("hidden");
-    clearDetail();
-    return;
-  }
-  meta.textContent = `${data.showing} / ${data.total}`;
-  if (!data.items?.length) {
-    rows.innerHTML = "";
-    itemsByKey = new Map();
-    empty.classList.remove("hidden");
-    clearDetail();
+    if (selectedKey) clearDetail();
     return;
   }
   empty.classList.add("hidden");
-  itemsByKey = new Map(data.items.map((p) => [productKey(p), p]));
-  rows.innerHTML = data.items
+  rows.innerHTML = items
     .map((p) => {
       const key = productKey(p);
       const img = p.image_url
         ? `<img class="thumb" src="${esc(p.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`
         : `<div class="thumb-empty"></div>`;
-      const crumb = p.category_path?.length
-        ? `<div class="muted crumb">${esc(p.category_path.join(" › "))}</div>`
+      const cat = p.category_norm?.length ? p.category_norm : p.category_path;
+      const crumb = cat?.length
+        ? `<div class="muted crumb">${esc(cat.join(" › "))}</div>`
         : "";
       const rating = p.rating != null ? p.rating.toFixed(1) : "—";
       const reviews = p.reviews_count != null ? p.reviews_count : "—";
@@ -195,16 +193,95 @@ async function load() {
   }
 }
 
+/** Instant filter of the cached marketplace/category window (no network). */
+function applyLocalFilter() {
+  const q = qEl.value;
+  const filtered = cacheItems.filter((p) => matchesQuery(p, q)).slice(0, 200);
+  meta.textContent = q.trim()
+    ? `${filtered.length} из кэша ${cacheItems.length} · в БД ${lastTotal}`
+    : `${filtered.length} / ${lastTotal}`;
+  renderRows(filtered);
+}
+
+async function loadCategories() {
+  const params = new URLSearchParams();
+  if (mpEl.value) params.set("marketplace", mpEl.value);
+  const res = await fetch("/api/categories?" + params);
+  const data = await res.json();
+  if (data.error || !data.tree?.length) {
+    catTree.innerHTML = "";
+    catEmpty.classList.toggle("hidden", !!data.tree?.length);
+    if (categoryKey) setActiveCat("");
+    return;
+  }
+  catEmpty.classList.add("hidden");
+  catTree.innerHTML = renderTree(data.tree);
+  setActiveCat(categoryKey);
+}
+
+/**
+ * Fetch products. Without text q → refresh typeahead cache.
+ * With q → server search over a wider DB window; show hits (cache unchanged).
+ */
+async function load(opts = {}) {
+  const q = qEl.value.trim();
+  const withQ = Boolean(opts.withQ && q);
+  const seq = ++loadSeq;
+  if (loadAbort) loadAbort.abort();
+  loadAbort = new AbortController();
+
+  const params = new URLSearchParams();
+  if (mpEl.value) params.set("marketplace", mpEl.value);
+  if (withQ) params.set("q", q);
+  if (categoryKey) params.set("category", categoryKey);
+  params.set("limit", withQ ? "200" : "2000");
+
+  try {
+    const res = await fetch("/api/products?" + params, { signal: loadAbort.signal });
+    const data = await res.json();
+    if (seq !== loadSeq) return;
+    if (data.error) {
+      meta.textContent = data.error;
+      cacheItems = [];
+      lastTotal = 0;
+      itemsByKey = new Map();
+      empty.classList.remove("hidden");
+      rows.innerHTML = "";
+      clearDetail();
+      return;
+    }
+    lastTotal = data.total ?? 0;
+    const items = data.items || [];
+    if (withQ) {
+      meta.textContent = `${items.length} найдено · в БД ${lastTotal}`;
+      renderRows(items);
+    } else {
+      cacheItems = items;
+      applyLocalFilter();
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    if (seq !== loadSeq) return;
+    meta.textContent = err?.message || String(err);
+  }
+}
+
 async function refresh() {
   await loadCategories();
   await load();
 }
 
-let t;
-qEl.addEventListener("input", () => {
-  clearTimeout(t);
-  t = setTimeout(load, 200);
-});
+function onQueryInput() {
+  applyLocalFilter();
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => {
+    const q = qEl.value.trim();
+    if (q) load({ withQ: true });
+    else load();
+  }, 180);
+}
+
+qEl.addEventListener("input", onQueryInput);
 mpEl.addEventListener("change", () => {
   setActiveCat("");
   clearDetail();
