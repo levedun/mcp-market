@@ -93,6 +93,8 @@ docker compose up -d --build
 - **Ответы.** Компактный JSON: без отступов, пустых полей и ссылок на картинки.
 - Описание товара Ozon с сентября 2026 читается из DOM карточки: composer-страница `pdpPage2column` отдаёт 403.
 
+Идеи на потом: [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Разработка
 
 ```bash
