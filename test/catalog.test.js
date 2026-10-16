@@ -55,6 +55,36 @@ import { normalizeCategory, collapseSiblingTail, stripNoiseRoots } from "../src/
     normalizeCategory({ name: "Оперативная память Kingston DDR5 16 ГБ" }),
     ["Электроника", "Комплектующие", "Оперативная память"]
   );
+  // DNS umbrella «ПК, ноутбуки…» must not classify desktop PCs as notebooks.
+  assert.deepEqual(
+    normalizeCategory({
+      name: "ПК ARDOR GAMING RAGE H416",
+      category_path: ["Каталог", "ПК, ноутбуки, периферия", "Компьютеры и ПО", "Персональные компьютеры"],
+    }),
+    ["Электроника", "Компьютеры", "Настольные и мини-ПК"]
+  );
+  assert.deepEqual(
+    normalizeCategory({
+      name: "Умная розетка TP-LINK Tapo P110",
+      category_path: ["Строительство и ремонт", "Электрика", "Розетки, вилки и выключатели", "Электророзетки"],
+    }),
+    ["Электроника", "Умный дом", "Розетки"]
+  );
+  assert.deepEqual(
+    normalizeCategory({
+      name: "Atorch Wi Fi цифровой ваттметр 220В AC",
+      category_path: ["Строительство и ремонт", "Инструменты", "Измерительные инструменты", "Счетчики электроэнергии"],
+    }),
+    ["Электроника", "Умный дом", "Измерители"]
+  );
+  // Brand leaf stripped from fallback path.
+  assert.deepEqual(
+    normalizeCategory({
+      name: "Кабель HDMI no-match-xyz",
+      category_path: ["Электроника", "Кабели", "Xiaomi"],
+    }),
+    ["Электроника", "Кабели"]
+  );
 }
 
 {
