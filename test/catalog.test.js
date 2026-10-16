@@ -35,6 +35,26 @@ import { normalizeCategory, collapseSiblingTail, stripNoiseRoots } from "../src/
     normalizeCategory({ name: "USB флешка 64GB", category_path: null }),
     ["Электроника", "Накопители", "USB-флешки"]
   );
+  // Specs in finished-PC titles must not win over the device type.
+  assert.deepEqual(
+    normalizeCategory({
+      name: "HUNSIO Мини-ПК (Intel Core i9-13900HX, RAM 16 ГБ, SSD 1000 ГБ, NVIDIA GeForce RTX 4060 (8 Гб), Windows 11 Pro), серый",
+    }),
+    ["Электроника", "Компьютеры", "Настольные и мини-ПК"]
+  );
+  assert.deepEqual(
+    normalizeCategory({ name: "Ноутбук ASUS 16 ГБ SSD 512 ГБ RTX 4050" }),
+    ["Электроника", "Компьютеры", "Ноутбуки"]
+  );
+  // Standalone parts still map to components.
+  assert.deepEqual(
+    normalizeCategory({ name: "SSD Samsung 990 PRO 1 ТБ NVMe" }),
+    ["Электроника", "Накопители", "Диски и SSD"]
+  );
+  assert.deepEqual(
+    normalizeCategory({ name: "Оперативная память Kingston DDR5 16 ГБ" }),
+    ["Электроника", "Комплектующие", "Оперативная память"]
+  );
 }
 
 {
@@ -75,8 +95,19 @@ import { normalizeCategory, collapseSiblingTail, stripNoiseRoots } from "../src/
     name: "DNS Item",
     price: 1000,
     url: "https://www.dns-shop.ru/product/abcdef0123456789/slug/",
+    image: "https://c.dns-shop.ru/thumb/x.jpg",
   }, "dns");
   assert.equal(dns.external_id, "abcdef0123456789");
+  assert.equal(dns.image_url, "https://c.dns-shop.ru/thumb/x.jpg");
+
+  const ya = normalizeItem({
+    name: "Yandex Chair Long Enough Name",
+    price: 5000,
+    id: "1234567890",
+    url: "https://market.yandex.ru/card/x/1234567890",
+    image: "https://avatars.mds.yandex.net/get-mpic/1/img",
+  }, "yandex");
+  assert.equal(ya.image_url, "https://avatars.mds.yandex.net/get-mpic/1/img");
 }
 
 {
